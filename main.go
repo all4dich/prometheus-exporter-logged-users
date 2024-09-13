@@ -2,19 +2,19 @@ package main
 
 import (
 	"fmt"
+	"github.com/akamensky/argparse"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 )
 
-// Declare 'port' variable and assign it to 8080
-// Get port nubmer from environment variable
-var port = 18080
+var port int
 
 func getLoggedInUsers() (string, error) {
-	// Execute the 'who' command to get logged in users
-	out, err := exec.Command("who").Output()
+	// Execute the 'w' command to get logged in users
+	out, err := exec.Command("w").Output()
 	if err != nil {
 		return "", err
 	}
@@ -38,22 +38,26 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	// Count the number of users (each line in the 'who' output represents one user)
 	userCount := 0
 	if users != "" {
-		userCount = len(strings.Split(users, "\n"))
+		userCount = len(strings.Split(users, "\n")) - 2
 	}
 
 	// Prometheus gauge metric format
 	metrics += fmt.Sprintf("logged_in_users %d\n", userCount)
 	// Loop users and print them
-	for _, user := range strings.Split(users, "\n") {
+	// Remove the first two lines of the 'who' output as they are headers
+	for _, user := range strings.Split(users, "\n")[2:] {
 		if user != "" {
 			user_info := strings.Fields(user)
 			user_name := user_info[0]
 			tty := user_info[1]
-			when := user_info[2]
-			from_location := user_info[4][1:]
-			from_location = from_location[:len(from_location)-1]
-			metrics += fmt.Sprintf("logged_in_user{user=\"%s\", tty=\"%s\", when=\"%s\", from=\"%s\"} 1\n",
-				user_name, tty, when, from_location)
+			from_location := user_info[2]
+			when := user_info[3]
+			idle_time := user_info[4]
+			jcpu_time := user_info[5]
+			pcpu_time := user_info[6]
+			what_command := user_info[7]
+			metrics += fmt.Sprintf("logged_in_user{user=\"%s\", tty=\"%s\", from=\"%s\", when=\"%s\", idle=\"%s\", jcpu=\"%s\", pcpu=\"%s\", what=\"%s\"} 1\n",
+				user_name, tty, from_location, when, idle_time, jcpu_time, pcpu_time, what_command)
 		}
 	}
 
@@ -63,12 +67,18 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	parser := argparse.NewParser("print", "Prints provided string to stdout")
+	portPtr := parser.Int("p", "port", &argparse.Options{Required: false, Help: "Port number to start the server on", Default: 8080})
 	// Set up HTTP server and route the '/metrics' path to the metricsHandler function
+	err := parser.Parse(os.Args)
+	if err != nil {
+		fmt.Print(parser.Usage(err))
+	}
+	port = *portPtr
 	http.HandleFunc("/metrics", metricsHandler)
 
-	// Start the HTTP server on port 8080
-	//fmt.Println("Starting server on : %d ...", port)
-	fmt.Printf("Starting server on : %d ...", port)
+	// Start the HTTP server on port $port
+	fmt.Printf("Starting logged users collector server on : %d ...", port)
 	if err := http.ListenAndServe(":"+strconv.Itoa(port), nil); err != nil {
 		fmt.Println("Error starting server:", err)
 	}
