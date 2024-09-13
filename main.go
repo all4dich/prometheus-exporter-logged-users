@@ -12,6 +12,18 @@ import (
 
 var port int
 
+func getHostname() (string, error) {
+	// Execute the 'hostname' command to get the hostname
+	out, err := exec.Command("hostname").Output()
+	if err != nil {
+		return "", err
+	}
+
+	// Convert the output to a string and trim any extra spaces
+	hostname := strings.TrimSpace(string(out))
+	return hostname, nil
+}
+
 func getLoggedInUsers() (string, error) {
 	// Execute the 'w' command to get logged in users
 	out, err := exec.Command("w").Output()
@@ -26,6 +38,8 @@ func getLoggedInUsers() (string, error) {
 
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	users, err := getLoggedInUsers()
+	host_name, err := getHostname()
+
 	if err != nil {
 		http.Error(w, "Error fetching logged-in users", http.StatusInternalServerError)
 		return
@@ -42,7 +56,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prometheus gauge metric format
-	metrics += fmt.Sprintf("logged_in_users %d\n", userCount)
+	metrics += fmt.Sprintf("logged_in_users{hostname=\"%s\"} %d\n", host_name, userCount)
 	// Loop users and print them
 	// Remove the first two lines of the 'who' output as they are headers
 	for _, user := range strings.Split(users, "\n")[2:] {
@@ -56,8 +70,8 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 			jcpu_time := user_info[5]
 			pcpu_time := user_info[6]
 			what_command := user_info[7]
-			metrics += fmt.Sprintf("logged_in_user{user=\"%s\", tty=\"%s\", from=\"%s\", when=\"%s\", idle=\"%s\", jcpu=\"%s\", pcpu=\"%s\", what=\"%s\"} 1\n",
-				user_name, tty, from_location, when, idle_time, jcpu_time, pcpu_time, what_command)
+			metrics += fmt.Sprintf("logged_in_user{hostname=\"%s\", user=\"%s\", tty=\"%s\", from=\"%s\", when=\"%s\", idle=\"%s\", jcpu=\"%s\", pcpu=\"%s\", what=\"%s\"} 1\n",
+				host_name, user_name, tty, from_location, when, idle_time, jcpu_time, pcpu_time, what_command)
 		}
 	}
 
