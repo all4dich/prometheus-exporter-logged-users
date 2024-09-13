@@ -1,0 +1,9 @@
+[Unit]
+After=libvirtd.service
+
+[Service]
+ExecStart=/usr/local/prometheus-exporter-logged-users/start.sh
+ExecStop=/usr/local/prometheus-exporter-logged-users/stop.sh
+
+[Install]
+WantedBy=default.target
