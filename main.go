@@ -67,7 +67,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	parser := argparse.NewParser("print", "Prints provided string to stdout")
+	parser := argparse.NewParser("prometheus-exporter-logged-users", "A Prometheus exporter for logged-in users")
 	portPtr := parser.Int("p", "port", &argparse.Options{Required: false, Help: "Port number to start the server on", Default: 8080})
 	// Set up HTTP server and route the '/metrics' path to the metricsHandler function
 	err := parser.Parse(os.Args)
