@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "message",
+    srcs = ["message.go"],
+    #importpath = "github.com/all4dich/prometheus-exporter-logged-users/local/message",
+    importpath = "prometheus-exporter-logged-users/local/message",
+    visibility = ["//visibility:public"],
+)

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"prometheus-exporter-logged-users/local/message"
 	"strconv"
 	"strings"
 )
@@ -91,6 +92,8 @@ func main() {
 	port = *portPtr
 	http.HandleFunc("/metrics", metricsHandler)
 
+	a := message.WelcomeMessage()
+	fmt.Println(a)
 	// Start the HTTP server on port $port
 	fmt.Printf("Starting logged users collector server on : %d ...", port)
 	if err := http.ListenAndServe(":"+strconv.Itoa(port), nil); err != nil {
