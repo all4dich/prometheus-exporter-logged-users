@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 	"github.com/akamensky/argparse"
+	"github.com/all4dich/prometheus-exporter-logged-users/local/message"
+	"github.com/all4dich/prometheus-exporter-logged-users/local/welcome"
 	"net/http"
 	"os"
 	"os/exec"
-	"prometheus-exporter-logged-users/local/message"
 	"strconv"
 	"strings"
 )
@@ -93,7 +94,9 @@ func main() {
 	http.HandleFunc("/metrics", metricsHandler)
 
 	a := message.WelcomeMessage()
+	b := welcome.WelcomeMessage()
 	fmt.Println(a)
+	fmt.Println(b)
 	// Start the HTTP server on port $port
 	fmt.Printf("Starting logged users collector server on : %d ...", port)
 	if err := http.ListenAndServe(":"+strconv.Itoa(port), nil); err != nil {

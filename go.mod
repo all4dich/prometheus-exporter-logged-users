@@ -1,4 +1,4 @@
-module prometheus-exporter-logged-users
+module github.com/all4dich/prometheus-exporter-logged-users
 
 go 1.22
 
