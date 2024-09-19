@@ -9,7 +9,14 @@ go_library(
 )
 
 go_binary(
-    name = "prometheus-exporter-logged-users",
+    name = "exporter-binary",
     embed = [":prometheus-exporter-logged-users_lib"],
     visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "deploy",
+    srcs = [":exporter-binary"],
+    outs = ["prometheus-exporter-logged-users"],
+    cmd = "cp $(location :exporter-binary) $(OUTS)",
 )
