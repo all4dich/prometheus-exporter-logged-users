@@ -5,7 +5,7 @@ name: Go
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "feature/build-with-bazel"]
   pull_request:
     branches: [ "main" ]
 
@@ -21,8 +21,18 @@ jobs:
       with:
         go-version: '1.22'
 
+    - uses: bazel-contrib/setup-bazel@0.8.5
+      with:
+        # Avoid downloading Bazel every time.
+        bazelisk-cache: true
+        # Store build cache per workflow.
+        disk-cache: ${{ github.workflow }}
+        # Share repository cache between workflows.
+        repository-cache: true
+
     - name: Build
-      run: go get && go build
+      run: ./build.sh
+      #run: go get && go build
 
     - name: Upload the artifacts
       uses: actions/upload-artifact@v4
