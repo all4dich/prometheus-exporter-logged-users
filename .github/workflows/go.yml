@@ -5,7 +5,7 @@ name: Go
 
 on:
   push:
-    branches: [ "main", "feature/build-with-bazel"]
+    branches: [ "main"]
   pull_request:
     branches: [ "main" ]
 
