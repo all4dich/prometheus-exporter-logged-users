@@ -32,4 +32,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: prometheus-exporter-logged-users
-        path: prometheus-exporter-logged-users
+        path: |
+          prometheus-exporter-logged-users
+          prometheus-exporter-logged-users-darwin-arm64
