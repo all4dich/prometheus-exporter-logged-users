@@ -102,18 +102,27 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	if my_processes != "" {
 		for _, process := range strings.Split(my_processes, "\n") {
 			if process != "" {
+				// Create code to catch exception
 				process_info := strings.Fields(process)
 				fmt.Println(process_info)
 				process_id := process_info[0]
 				user_name := process_info[2]
 				read_Ks := process_info[3]
 				write_Ks := process_info[5]
-				swapin_percent := process_info[7]
-				io_percent := process_info[9]
-				process_command := process_info[11:]
-				process_command_str := strings.Join(process_command, " ")
-				metrics += fmt.Sprintf("process_read_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} 1\n",
-					host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str)
+
+				if process_info[7] == "?unavailable?" {
+					process_command := process_info[8:]
+					process_command_str := strings.Join(process_command, " ")
+					metrics += fmt.Sprintf("process_read_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", command=\"%s\"} 1\n",
+						host_name, process_id, user_name, read_Ks, write_Ks, process_command_str)
+				} else {
+					swapin_percent := process_info[7]
+					io_percent := process_info[9]
+					process_command := process_info[11:]
+					process_command_str := strings.Join(process_command, " ")
+					metrics += fmt.Sprintf("process_read_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} 1\n",
+						host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str)
+				}
 			}
 		}
 	}
