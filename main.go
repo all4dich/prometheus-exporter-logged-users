@@ -26,7 +26,7 @@ func getHostname() (string, error) {
 
 func getLoggedInUsers() (string, error) {
 	// Execute the 'w' command to get logged in users
-	out, err := exec.Command("w").Output()
+	out, err := exec.Command("LC_ALL=C w").Output()
 	if err != nil {
 		return "", err
 	}
@@ -93,9 +93,10 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 			idle_time := user_info[4]
 			jcpu_time := user_info[5]
 			pcpu_time := user_info[6]
-			what_command := user_info[7]
+			what_command := user_info[7:]
+			what_command_str := strings.Join(what_command, " ")
 			metrics += fmt.Sprintf("logged_in_user{hostname=\"%s\", user=\"%s\", tty=\"%s\", from=\"%s\", when=\"%s\", idle=\"%s\", jcpu=\"%s\", pcpu=\"%s\", what=\"%s\"} 1\n",
-				host_name, user_name, tty, from_location, when, idle_time, jcpu_time, pcpu_time, what_command)
+				host_name, user_name, tty, from_location, when, idle_time, jcpu_time, pcpu_time, what_command_str)
 		}
 	}
 	if my_processes != "" {
