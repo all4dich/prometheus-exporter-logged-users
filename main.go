@@ -113,15 +113,19 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 				if process_info[7] == "?unavailable?" {
 					process_command := process_info[8:]
 					process_command_str := strings.Join(process_command, " ")
-					metrics += fmt.Sprintf("process_read_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", command=\"%s\"} 1\n",
-						host_name, process_id, user_name, read_Ks, write_Ks, process_command_str)
+					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", command=\"%s\"} %s\n",
+						host_name, process_id, user_name, read_Ks, write_Ks, process_command_str, read_Ks)
+					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", command=\"%s\"} %s\n",
+						host_name, process_id, user_name, read_Ks, write_Ks, process_command_str, write_Ks)
 				} else {
 					swapin_percent := process_info[7]
 					io_percent := process_info[9]
 					process_command := process_info[11:]
 					process_command_str := strings.Join(process_command, " ")
-					metrics += fmt.Sprintf("process_read_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} 1\n",
-						host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str)
+					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} %s\n",
+						host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str, read_Ks)
+					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} %s\n",
+						host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str, write_Ks)
 				}
 			}
 		}
