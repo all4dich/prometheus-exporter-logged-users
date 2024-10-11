@@ -36,18 +36,42 @@ func getLoggedInUsers() (string, error) {
 	return users, nil
 }
 
+func getProcesses() (string, error) {
+	// Execute the 'ps' command to get processes
+	//out, err := exec.Command("/usr/sbin/iotop", "--only -k -b -n 1").Output()
+	out, err := exec.Command("/usr/sbin/iotop", "--processes", "-qqq", "--only", "-k", "-b", "-n", "1").Output()
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	// Convert the output to a string and trim any extra spaces
+	processes := strings.TrimSpace(string(out))
+	return processes, nil
+}
+
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	users, err := getLoggedInUsers()
 	host_name, err := getHostname()
+	my_processes, err_get_process := getProcesses()
 
+	fmt.Println(my_processes)
 	if err != nil {
 		http.Error(w, "Error fetching logged-in users", http.StatusInternalServerError)
+		fmt.Println(err)
+		return
+	}
+	if err_get_process != nil {
+		http.Error(w, "Error fetching process", http.StatusInternalServerError)
+		fmt.Println(err_get_process)
 		return
 	}
 
 	// Prepare Prometheus format metrics
 	metrics := "# HELP logged_in_users List of currently logged-in users.\n"
 	metrics += "# TYPE logged_in_users gauge\n"
+	metrics += "# HELP process_read_write_in_KB List of currently running processes with Read/Write KB/s.\n"
+	metrics += "# TYPE process_read_write_in_KB gauge\n"
 
 	// Count the number of users (each line in the 'who' output represents one user)
 	userCount := 0
@@ -74,7 +98,24 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 				host_name, user_name, tty, from_location, when, idle_time, jcpu_time, pcpu_time, what_command)
 		}
 	}
-
+	if my_processes != "" {
+		for _, process := range strings.Split(my_processes, "\n") {
+			if process != "" {
+				process_info := strings.Fields(process)
+				fmt.Println(process_info)
+				process_id := process_info[0]
+				user_name := process_info[2]
+				read_Ks := process_info[3]
+				write_Ks := process_info[5]
+				swapin_percent := process_info[7]
+				io_percent := process_info[9]
+				process_command := process_info[11:]
+				process_command_str := strings.Join(process_command, " ")
+				metrics += fmt.Sprintf("process_read_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} 1\n",
+					host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str)
+			}
+		}
+	}
 	// Write response in Prometheus format
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte(metrics))
