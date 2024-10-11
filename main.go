@@ -26,7 +26,7 @@ func getHostname() (string, error) {
 
 func getLoggedInUsers() (string, error) {
 	// Execute the 'w' command to get logged in users
-	out, err := exec.Command("LC_ALL=C w").Output()
+	out, err := exec.Command("w").Output()
 	if err != nil {
 		return "", err
 	}
