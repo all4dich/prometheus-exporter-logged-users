@@ -25,6 +25,7 @@ func getHostname() (string, error) {
 }
 
 func getLoggedInUsers() (string, error) {
+	//fmt.Println("Getting logged in users")
 	// Execute the 'w' command to get logged in users
 	out, err := exec.Command("w").Output()
 	if err != nil {
@@ -37,6 +38,7 @@ func getLoggedInUsers() (string, error) {
 }
 
 func getProcesses() (string, error) {
+	//fmt.Println("Getting processes")
 	// Execute the 'ps' command to get processes
 	//out, err := exec.Command("/usr/sbin/iotop", "--only -k -b -n 1").Output()
 	out, err := exec.Command("/usr/sbin/iotop", "--processes", "-qqq", "--only", "-k", "-b", "-n", "1").Output()
@@ -50,10 +52,22 @@ func getProcesses() (string, error) {
 	return processes, nil
 }
 
+func getProcesses_with_mem_cpu() (string, error) {
+	//fmt.Println("Getting processes with mem and cpu")
+	out, err := exec.Command("ps", "-eo", "user:30,pid,pcpu,vsz,rss,cmd", "--sort=-rss", "--no-headers").Output()
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	processes := strings.TrimSpace(string(out))
+	return processes, nil
+}
+
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	users, err := getLoggedInUsers()
 	host_name, err := getHostname()
 	my_processes, err_get_process := getProcesses()
+	process_with_mem_cpu, err_get_process_mem_cpu := getProcesses_with_mem_cpu()
 
 	fmt.Println(my_processes)
 	if err != nil {
@@ -64,6 +78,11 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	if err_get_process != nil {
 		http.Error(w, "Error fetching process", http.StatusInternalServerError)
 		fmt.Println(err_get_process)
+		return
+	}
+	if err_get_process_mem_cpu != nil {
+		http.Error(w, "Error fetching process with mem and cpu", http.StatusInternalServerError)
+		fmt.Println(err_get_process_mem_cpu)
 		return
 	}
 
@@ -130,6 +149,31 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if process_with_mem_cpu != "" {
+		//fmt.Println("Loop: Getting processes with mem and cpu - start")
+		for _, process := range strings.Split(process_with_mem_cpu, "\n") {
+			if process != "" {
+				process_info := strings.Fields(process)
+				username := process_info[0]
+				process_id := process_info[1]
+				cpu_percent := process_info[2]
+				vsz := process_info[3]
+				rss := process_info[4]
+				process_command := process_info[5:]
+				process_command_str := strings.Join(process_command, " ")
+				// drop if process_command_str starts with [ or / or < or >
+				if strings.HasPrefix(process_command_str, "[") || strings.HasPrefix(process_command_str, "/") || strings.HasPrefix(process_command_str, "<") || strings.HasPrefix(process_command_str, ">") {
+					continue
+				}
+				metrics += fmt.Sprintf("process_cpu_percent{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", command=\"%s\"} %s\n",
+					host_name, username, process_id, cpu_percent, vsz, rss, process_command_str, cpu_percent)
+				metrics += fmt.Sprintf("process_vsz{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", command=\"%s\"} %s\n",
+					host_name, username, process_id, cpu_percent, vsz, rss, process_command_str, vsz)
+				metrics += fmt.Sprintf("process_rss{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", command=\"%s\"} %s\n",
+					host_name, username, process_id, cpu_percent, vsz, rss, process_command_str, rss)
+			}
+		}
+	}
 	// Write response in Prometheus format
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte(metrics))
@@ -147,7 +191,7 @@ func main() {
 	http.HandleFunc("/metrics", metricsHandler)
 
 	// Start the HTTP server on port $port
-	fmt.Printf("Starting logged users collector server on : %d ...", port)
+	fmt.Printf("Starting logged users collector server on : %d ...\n", port)
 	if err := http.ListenAndServe(":"+strconv.Itoa(port), nil); err != nil {
 		fmt.Println("Error starting server:", err)
 	}
