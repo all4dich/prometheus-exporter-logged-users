@@ -207,13 +207,31 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 				read_Ks := process_info[3]
 				write_Ks := process_info[5]
 
+				hierarchyId := ""
+				subsystem := ""
+				cgroupPath := ""
+				containerId := ""
+				containerName := ""
+				err := error(nil)
+
+				process_id_str, _ := strconv.Atoi(process_id)
+				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
+					fmt.Println("Error:", err)
+				} else {
+					fmt.Printf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
+				}
+				if containerId == "" {
+					containerId = "0 N/A"
+					containerName = "0 N/A"
+				}
+
 				if process_info[7] == "?unavailable?" {
 					process_command := process_info[8:]
 					process_command_str := strings.Join(process_command, " ")
-					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", command=\"%s\"} %s\n",
-						host_name, process_id, user_name, read_Ks, write_Ks, process_command_str, read_Ks)
-					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", command=\"%s\"} %s\n",
-						host_name, process_id, user_name, read_Ks, write_Ks, process_command_str, write_Ks)
+					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
+						host_name, process_id, user_name, read_Ks, write_Ks, containerId, containerName, process_command_str, read_Ks)
+					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
+						host_name, process_id, user_name, read_Ks, write_Ks, containerId, containerName, process_command_str, write_Ks)
 				} else {
 					swapin_percent := process_info[7]
 					io_percent := process_info[9]
@@ -239,16 +257,32 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 				rss := process_info[4]
 				process_command := process_info[5:]
 				process_command_str := strings.Join(process_command, " ")
+				hierarchyId := ""
+				subsystem := ""
+				cgroupPath := ""
+				containerId := ""
+				containerName := ""
+				err := error(nil)
 				// drop if process_command_str starts with [ or / or < or >
 				if strings.HasPrefix(process_command_str, "[") || strings.HasPrefix(process_command_str, "/") || strings.HasPrefix(process_command_str, "<") || strings.HasPrefix(process_command_str, ">") {
 					continue
 				}
-				metrics += fmt.Sprintf("process_cpu_percent{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", command=\"%s\"} %s\n",
-					host_name, username, process_id, cpu_percent, vsz, rss, process_command_str, cpu_percent)
-				metrics += fmt.Sprintf("process_vsz{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", command=\"%s\"} %s\n",
-					host_name, username, process_id, cpu_percent, vsz, rss, process_command_str, vsz)
-				metrics += fmt.Sprintf("process_rss{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", command=\"%s\"} %s\n",
-					host_name, username, process_id, cpu_percent, vsz, rss, process_command_str, rss)
+				process_id_str, _ := strconv.Atoi(process_id)
+				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
+					fmt.Println("Error:", err)
+				} else {
+					fmt.Printf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
+				}
+				if containerId == "" {
+					containerId = "0 N/A"
+					containerName = "0 N/A"
+				}
+				metrics += fmt.Sprintf("process_cpu_percent{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
+					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, cpu_percent)
+				metrics += fmt.Sprintf("process_vsz{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
+					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, vsz)
+				metrics += fmt.Sprintf("process_rss{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
+					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, rss)
 			}
 		}
 	}
