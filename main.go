@@ -1,16 +1,94 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/akamensky/argparse"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
 var port int
+
+func readCgroupInfo(pid int) (string, string, string, error) {
+	cgroupFile := filepath.Join("/proc", fmt.Sprint(pid), "cgroup")
+	file, err := os.Open(cgroupFile)
+	hierarchyID := ""
+	subsystem := ""
+	cgroupPath := ""
+	if err != nil {
+		return hierarchyID, subsystem, cgroupPath, fmt.Errorf("failed to open cgroup file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	fmt.Printf("Read Cgroup information for PID %d:\n", pid)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Split(line, ":")
+		fmt.Println(fields)
+		if len(fields) >= 3 {
+			// fields[0] is the hierarchy ID, fields[1] is the subsystem, fields[2] is the cgroup path
+			hierarchyID = fields[0]
+			subsystem = fields[1]
+			cgroupPath = fields[2]
+			if hierarchyID == "0" {
+				break
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return hierarchyID, subsystem, cgroupPath, fmt.Errorf("error reading cgroup file: %w", err)
+	}
+
+	return hierarchyID, subsystem, cgroupPath, nil
+}
+
+func getContainerName(containerId string) (string, error) {
+	containerName := ""
+	//  docker inspect -f '{{.Name}}' <containerId>>?
+	out, err := exec.Command("docker", "inspect", "-f", "'{{.Name}}'", containerId).Output()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return containerName, err
+	}
+	containerName = strings.Trim(string(out), "'\n")
+	return containerName, nil
+}
+
+func checkCgroup(pid int) (string, string, string, string, string, error) {
+	hierarchyId, subsystem, cgroupPath, err := readCgroupInfo(pid)
+	containerId := ""
+	containerName := ""
+	if err != nil {
+		fmt.Println("Error:", err)
+		return hierarchyId, subsystem, cgroupPath, containerId, containerName, err
+	} else {
+		cgroupPathFields := strings.Split(cgroupPath, "/")
+		processCgroup := cgroupPathFields[1]
+		if processCgroup == "docker" {
+			fmt.Println("This process is running in a Docker container")
+			containerId = cgroupPathFields[2]
+		} else {
+			fmt.Println("This process is running in system or user cgroup")
+			processInfo := cgroupPathFields[2]
+			processInfoFields := strings.Split(processInfo, "-")
+			if processInfoFields[0] == "docker" {
+				fmt.Println("This process is running in a Docker container")
+				containerId = strings.ReplaceAll(processInfoFields[1], ".scope", "")
+			}
+		}
+		if containerId != "" {
+			containerName, err = getContainerName(containerId)
+		}
+		return hierarchyId, subsystem, cgroupPath, containerId, containerName, err
+	}
+}
 
 func getHostname() (string, error) {
 	// Execute the 'hostname' command to get the hostname
