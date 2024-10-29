@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -292,6 +293,16 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Get a user id who call this program
+	uid := os.Getuid()
+	user, _ := user.LookupId(strconv.Itoa(uid))
+	fmt.Println("User ID:", uid)
+	fmt.Println("User Name:", user.Username)
+	if uid != 0 {
+		fmt.Println("You must run this program as root")
+		os.Exit(1)
+	}
+
 	parser := argparse.NewParser("prometheus-exporter-logged-users", "A Prometheus exporter for logged-in users")
 	portPtr := parser.Int("p", "port", &argparse.Options{Required: false, Help: "Port number to start the server on", Default: 8080})
 	// Set up HTTP server and route the '/metrics' path to the metricsHandler function
