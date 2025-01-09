@@ -187,7 +187,7 @@ func getProcesses_with_mem_cpu() (string, error) {
 	return processes, nil
 }
 
-func metricsHandler_push() {
+func metrics_to_influx() {
 	users, err := getLoggedInUsers()
 	host_name, err := getHostname()
 	my_processes, err_get_process := getProcesses()
@@ -538,12 +538,12 @@ func main() {
 		fmt.Print(parser.Usage(err))
 	}
 	port = *portPtr
-	http.HandleFunc("/metrics", printHello)
+	http.HandleFunc("/metrics", metricsHandler)
 
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for range ticker.C {
-			metricsHandler_push()
+			metrics_to_influx()
 		}
 	}()
 
