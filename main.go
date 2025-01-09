@@ -83,11 +83,20 @@ func checkCgroup(pid int) (string, string, string, string, string, error) {
 			containerId = cgroupPathFields[2]
 		} else {
 			fmt.Println("This process is running in system or user cgroup")
-			processInfo := cgroupPathFields[2]
-			processInfoFields := strings.Split(processInfo, "-")
-			if processInfoFields[0] == "docker" {
-				fmt.Println("This process is running in a Docker container")
-				containerId = strings.ReplaceAll(processInfoFields[1], ".scope", "")
+			// check if the process is running in a Docker container
+			// 1. Read the cgroup file of the process
+			// 2. Check if the process is running in a Docker container
+			// 3. If the process is running in a Docker container, get the container ID
+			// 4. Get the container name using the container ID
+			// 5. Print the container ID and container name
+			// Check If cgroupPathFields's length is greater than or equal to 2
+			if cgroupPath != "/" {
+				processInfo := cgroupPathFields[2]
+				processInfoFields := strings.Split(processInfo, "-")
+				if processInfoFields[0] == "docker" {
+					fmt.Println("This process is running in a Docker container")
+					containerId = strings.ReplaceAll(processInfoFields[1], ".scope", "")
+				}
 			}
 		}
 		if containerId != "" {
@@ -157,7 +166,7 @@ func metricsHandler_push() {
 	url := "http://keti-dashboard.sunjoo.org:8086"
 	client := influxdb2.NewClient(url, token)
 	org := "KETI"
-	bucket := "IntelligentSW2"
+	bucket := "IntelligentSW3"
 	writeAPI := client.WriteAPIBlocking(org, bucket)
 	fmt.Println(my_processes)
 	if err != nil {
@@ -249,7 +258,9 @@ func metricsHandler_push() {
 					process_command := process_info[8:]
 					process_command_str := strings.Join(process_command, " ")
 					tags = map[string]string{"hostname": host_name, "process_id": process_id, "username": user_name, "command": process_command_str, "container_name": containerName, "container_id": containerId}
-					fields = map[string]interface{}{"read": read_Ks, "write": write_Ks}
+					read_Ks_float, _ := strconv.ParseFloat(read_Ks, 64)
+					write_Ks_float, _ := strconv.ParseFloat(write_Ks, 64)
+					fields = map[string]interface{}{"read": read_Ks_float, "write": write_Ks_float}
 					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
 						host_name, process_id, user_name, read_Ks, write_Ks, containerId, containerName, process_command_str, read_Ks)
 					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
@@ -259,8 +270,12 @@ func metricsHandler_push() {
 					io_percent := process_info[9]
 					process_command := process_info[11:]
 					process_command_str := strings.Join(process_command, " ")
+					read_Ks_float, _ := strconv.ParseFloat(read_Ks, 64)
+					write_Ks_float, _ := strconv.ParseFloat(write_Ks, 64)
+					swapin_percent_float, _ := strconv.ParseFloat(swapin_percent, 64)
+					io_percent_float, _ := strconv.ParseFloat(io_percent, 64)
 					tags = map[string]string{"hostname": host_name, "process_id": process_id, "username": user_name, "command": process_command_str}
-					fields = map[string]interface{}{"read": read_Ks, "write": write_Ks, "swapin": swapin_percent, "io": io_percent}
+					fields = map[string]interface{}{"read": read_Ks_float, "write": write_Ks_float, "swapin": swapin_percent_float, "io": io_percent_float}
 					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} %s\n",
 						host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str, read_Ks)
 					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} %s\n",
@@ -313,8 +328,11 @@ func metricsHandler_push() {
 					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, vsz)
 				metrics += fmt.Sprintf("process_rss{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
 					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, rss)
+				cpu_percent_float, _ := strconv.ParseFloat(cpu_percent, 64)
+				vsz_float, _ := strconv.ParseFloat(vsz, 64)
+				rss_float, _ := strconv.ParseFloat(rss, 64)
 				tags := map[string]string{"hostname": host_name, "username": username, "process_id": process_id, "command": process_command_str, "container_name": containerName, "container_id": containerId}
-				fields := map[string]interface{}{"cpu_percent": cpu_percent, "vsz": vsz, "rss": rss}
+				fields := map[string]interface{}{"cpu_percent": cpu_percent_float, "vsz": vsz_float, "rss": rss_float}
 				point := write.NewPoint("process_mem_cpu", tags, fields, time.Now())
 				if err := writeAPI.WritePoint(context.Background(), point); err != nil {
 					log.Fatal("Cannot write point with 'process_mem_cpu'")
@@ -326,6 +344,10 @@ func metricsHandler_push() {
 	defer client.Close()
 	// Print metrics to standard output
 	fmt.Println(metrics)
+}
+
+func printHello(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Hello")
 }
 
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
@@ -497,7 +519,7 @@ func main() {
 		fmt.Print(parser.Usage(err))
 	}
 	port = *portPtr
-	http.HandleFunc("/metrics", metricsHandler)
+	http.HandleFunc("/metrics", printHello)
 
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
