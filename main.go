@@ -18,7 +18,6 @@ import (
 	"github.com/akamensky/argparse"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
-	"golang.org/x/sys/unix"
 	"runtime"
 )
 
@@ -27,21 +26,15 @@ var port int
 func getOSInfo() (string, string, error) {
 	var distro, version string
 
-	switch runtime.GOOS {
+	distro = runtime.GOOS
+	switch distro {
 	case "linux":
-		utsname := &unix.Utsname{}
-		if err := unix.Uname(utsname); err != nil {
-			return "", "", err
-		}
-		distro = string(utsname.Sysname[:])
-		version = string(utsname.Release[:])
+		out, _ := exec.Command("uname", "-r").Output()
+		version = strings.TrimSpace(string(out))
 	case "darwin":
-		utsname := &unix.Utsname{}
-		if err := unix.Uname(utsname); err != nil {
-			return "", "", err
-		}
 		distro = "macOS"
-		version = string(utsname.Release[:])
+		out, _ := exec.Command("sw_vers", "--productVersion").Output()
+		version = strings.TrimSpace(string(out))
 	case "windows":
 		distro = "Windows"
 		version = "N/A"
@@ -49,6 +42,10 @@ func getOSInfo() (string, string, error) {
 		return "", "", fmt.Errorf("Unsupported OS")
 	}
 
+	distro = strings.ReplaceAll(distro, " ", "")
+	distro = strings.ToLower(distro)
+	version = strings.ReplaceAll(version, " ", "")
+	version = strings.ToLower(version)
 	return distro, version, nil
 }
 
