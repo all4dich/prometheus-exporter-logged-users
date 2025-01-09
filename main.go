@@ -261,10 +261,6 @@ func metricsHandler_push() {
 					read_Ks_float, _ := strconv.ParseFloat(read_Ks, 64)
 					write_Ks_float, _ := strconv.ParseFloat(write_Ks, 64)
 					fields = map[string]interface{}{"read": read_Ks_float, "write": write_Ks_float}
-					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
-						host_name, process_id, user_name, read_Ks, write_Ks, containerId, containerName, process_command_str, read_Ks)
-					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
-						host_name, process_id, user_name, read_Ks, write_Ks, containerId, containerName, process_command_str, write_Ks)
 				} else {
 					swapin_percent := process_info[7]
 					io_percent := process_info[9]
@@ -276,10 +272,6 @@ func metricsHandler_push() {
 					io_percent_float, _ := strconv.ParseFloat(io_percent, 64)
 					tags = map[string]string{"hostname": host_name, "process_id": process_id, "username": user_name, "command": process_command_str}
 					fields = map[string]interface{}{"read": read_Ks_float, "write": write_Ks_float, "swapin": swapin_percent_float, "io": io_percent_float}
-					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} %s\n",
-						host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str, read_Ks)
-					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} %s\n",
-						host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str, write_Ks)
 				}
 				fmt.Println(tags)
 				fmt.Println(fields)
@@ -322,12 +314,6 @@ func metricsHandler_push() {
 					containerId = "0 N/A"
 					containerName = "0 N/A"
 				}
-				metrics += fmt.Sprintf("process_cpu_percent{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
-					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, cpu_percent)
-				metrics += fmt.Sprintf("process_vsz{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
-					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, vsz)
-				metrics += fmt.Sprintf("process_rss{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
-					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, rss)
 				cpu_percent_float, _ := strconv.ParseFloat(cpu_percent, 64)
 				vsz_float, _ := strconv.ParseFloat(vsz, 64)
 				rss_float, _ := strconv.ParseFloat(rss, 64)
@@ -342,8 +328,6 @@ func metricsHandler_push() {
 		}
 	}
 	defer client.Close()
-	// Print metrics to standard output
-	fmt.Println(metrics)
 }
 
 func printHello(w http.ResponseWriter, r *http.Request) {
