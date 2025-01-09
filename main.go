@@ -2,8 +2,9 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
-	"github.com/akamensky/argparse"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -12,6 +13,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/akamensky/argparse"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api/write"
 )
 
 var port int
@@ -148,7 +153,12 @@ func metricsHandler_push() {
 	host_name, err := getHostname()
 	my_processes, err_get_process := getProcesses()
 	process_with_mem_cpu, err_get_process_mem_cpu := getProcesses_with_mem_cpu()
-
+	token := "h+TMf2idXNg="
+	url := "http://keti-dashboard.sunjoo.org:8086"
+	client := influxdb2.NewClient(url, token)
+	org := "KETI"
+	bucket := "IntelligentSW2"
+	writeAPI := client.WriteAPIBlocking(org, bucket)
 	fmt.Println(my_processes)
 	if err != nil {
 		fmt.Println("Error fetching logged-in users:", err)
@@ -165,9 +175,6 @@ func metricsHandler_push() {
 
 	// Prepare Prometheus format metrics
 	metrics := "# HELP logged_in_users List of currently logged-in users.\n"
-	metrics += "# TYPE logged_in_users gauge\n"
-	metrics += "# HELP process_read_write_in_KB List of currently running processes with Read/Write KB/s.\n"
-	metrics += "# TYPE process_read_write_in_KB gauge\n"
 
 	// Count the number of users (each line in the 'who' output represents one user)
 	userCount := 0
@@ -176,7 +183,12 @@ func metricsHandler_push() {
 	}
 
 	// Prometheus gauge metric format
-	metrics += fmt.Sprintf("logged_in_users{hostname=\"%s\"} %d\n", host_name, userCount)
+	tags := map[string]string{"hostname": host_name}
+	fields := map[string]interface{}{"number_of_users": userCount}
+	point := write.NewPoint("logged_in_users", tags, fields, time.Now())
+	if err := writeAPI.WritePoint(context.Background(), point); err != nil {
+		log.Fatal(err)
+	}
 	// Loop users and print them
 	// Remove the first two lines of the 'who' output as they are headers
 	for _, user := range strings.Split(users, "\n")[2:] {
@@ -193,6 +205,13 @@ func metricsHandler_push() {
 			what_command_str := strings.Join(what_command, " ")
 			metrics += fmt.Sprintf("logged_in_user{hostname=\"%s\", user=\"%s\", tty=\"%s\", from=\"%s\", when=\"%s\", idle=\"%s\", jcpu=\"%s\", pcpu=\"%s\", what=\"%s\"} 1\n",
 				host_name, user_name, tty, from_location, when, idle_time, jcpu_time, pcpu_time, what_command_str)
+			tags := map[string]string{"hostname": host_name, "user": user_name, "tty": tty, "from": from_location, "when": when, "idle": idle_time, "jcpu": jcpu_time, "pcpu": pcpu_time, "what": what_command_str}
+			fields := map[string]interface{}{"logged_in": 1}
+			point := write.NewPoint("logged_in_user", tags, fields, time.Now())
+			if err := writeAPI.WritePoint(context.Background(), point); err != nil {
+				log.Fatal("Cannot write point with 'logged_in_user'")
+				log.Fatal(err)
+			}
 		}
 	}
 	if my_processes != "" {
@@ -224,9 +243,13 @@ func metricsHandler_push() {
 					containerName = "0 N/A"
 				}
 
+				tags := map[string]string{}
+				fields := map[string]interface{}{}
 				if process_info[7] == "?unavailable?" {
 					process_command := process_info[8:]
 					process_command_str := strings.Join(process_command, " ")
+					tags = map[string]string{"hostname": host_name, "process_id": process_id, "username": user_name, "command": process_command_str, "container_name": containerName, "container_id": containerId}
+					fields = map[string]interface{}{"read": read_Ks, "write": write_Ks}
 					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
 						host_name, process_id, user_name, read_Ks, write_Ks, containerId, containerName, process_command_str, read_Ks)
 					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
@@ -236,10 +259,18 @@ func metricsHandler_push() {
 					io_percent := process_info[9]
 					process_command := process_info[11:]
 					process_command_str := strings.Join(process_command, " ")
+					tags = map[string]string{"hostname": host_name, "process_id": process_id, "username": user_name, "command": process_command_str}
+					fields = map[string]interface{}{"read": read_Ks, "write": write_Ks, "swapin": swapin_percent, "io": io_percent}
 					metrics += fmt.Sprintf("process_read_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} %s\n",
 						host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str, read_Ks)
 					metrics += fmt.Sprintf("process_write_in_KB{hostname=\"%s\", process_id=\"%s\", username=\"%s\", read=\"%s\", write=\"%s\", swapin=\"%s\", io=\"%s\", command=\"%s\"} %s\n",
 						host_name, process_id, user_name, read_Ks, write_Ks, swapin_percent, io_percent, process_command_str, write_Ks)
+				}
+				fmt.Println(tags)
+				fmt.Println(fields)
+				point := write.NewPoint("process_read_write_in_KB", tags, fields, time.Now())
+				if err := writeAPI.WritePoint(context.Background(), point); err != nil {
+					log.Fatal(err)
 				}
 			}
 		}
@@ -282,9 +313,17 @@ func metricsHandler_push() {
 					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, vsz)
 				metrics += fmt.Sprintf("process_rss{hostname=\"%s\", username=\"%s\", process_id=\"%s\", cpu_percent=\"%s\", vsz=\"%s\", rss=\"%s\", container_name=\"%s\", container_id=\"%s\", command=\"%s\"} %s\n",
 					host_name, username, process_id, cpu_percent, vsz, rss, containerName, containerId, process_command_str, rss)
+				tags := map[string]string{"hostname": host_name, "username": username, "process_id": process_id, "command": process_command_str, "container_name": containerName, "container_id": containerId}
+				fields := map[string]interface{}{"cpu_percent": cpu_percent, "vsz": vsz, "rss": rss}
+				point := write.NewPoint("process_mem_cpu", tags, fields, time.Now())
+				if err := writeAPI.WritePoint(context.Background(), point); err != nil {
+					log.Fatal("Cannot write point with 'process_mem_cpu'")
+					log.Fatal(err)
+				}
 			}
 		}
 	}
+	defer client.Close()
 	// Print metrics to standard output
 	fmt.Println(metrics)
 }
