@@ -188,17 +188,17 @@ func getProcesses_with_mem_cpu() (string, error) {
 	return processes, nil
 }
 
-func metrics_to_influx() {
+func metrics_to_influx(input_url string, input_token string, input_org string, input_bucket string) {
 	users, err := getLoggedInUsers()
 	host_name, err := getHostname()
 	my_processes, err_get_process := getProcesses()
 	os_dist, os_version, err := getOSInfo()
 	process_with_mem_cpu, err_get_process_mem_cpu := getProcesses_with_mem_cpu()
-	token := "h+TMf2idXNg="
-	url := "http://keti-dashboard.sunjoo.org:8086"
+	token := input_token
+	url := input_url
 	client := influxdb2.NewClient(url, token)
-	org := "KETI"
-	bucket := "IntelligentSW3"
+	org := input_org
+	bucket := input_bucket
 	writeAPI := client.WriteAPIBlocking(org, bucket)
 	if err != nil {
 		log.Println("Error fetching logged-in users:", err)
@@ -527,18 +527,27 @@ func main() {
 
 	parser := argparse.NewParser("prometheus-exporter-logged-users", "A Prometheus exporter for logged-in users")
 	portPtr := parser.Int("p", "port", &argparse.Options{Required: false, Help: "Port number to start the server on", Default: 8080})
+	tokenPtr := parser.String("t", "token", &argparse.Options{Required: true, Help: "InfluxDB token"})
+	urlPtr := parser.String("u", "url", &argparse.Options{Required: true, Help: "InfluxDB URL"})
+	orgPtr := parser.String("o", "org", &argparse.Options{Required: true, Help: "InfluxDB Organization"})
+	bucketPtr := parser.String("b", "bucket", &argparse.Options{Required: true, Help: "InfluxDB Bucket"})
+
 	// Set up HTTP server and route the '/metrics' path to the metricsHandler function
 	err := parser.Parse(os.Args)
 	if err != nil {
 		fmt.Print(parser.Usage(err))
 	}
 	port = *portPtr
+	token := *tokenPtr
+	url := *urlPtr
+	org := *orgPtr
+	bucket := *bucketPtr
 	http.HandleFunc("/metrics", metricsHandler)
 
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for range ticker.C {
-			metrics_to_influx()
+			metrics_to_influx(url, token, org, bucket)
 		}
 	}()
 
