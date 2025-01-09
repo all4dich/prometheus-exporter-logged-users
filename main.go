@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -63,7 +64,7 @@ func readCgroupInfo(pid int) (string, string, string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	log.Printf("Read Cgroup information for PID %d:\n", pid)
+	slog.Debug("Read Cgroup information for PID %d:\n", pid)
 	for scanner.Scan() {
 		line := scanner.Text()
 		fields := strings.Split(line, ":")
@@ -90,8 +91,8 @@ func getContainerName(containerId string) (string, error) {
 	//  docker inspect -f '{{.Name}}' <containerId>>?
 	out, err := exec.Command("docker", "inspect", "-f", "'{{.Name}}'", containerId).Output()
 	if err != nil {
-		log.Println("Cannot get container name for container ID:", containerId)
-		log.Println("Error:", err)
+		slog.Debug("Cannot get container name for container ID:", containerId)
+		slog.Debug("Error:", err)
 		return containerName, err
 	}
 	containerName = strings.Trim(string(out), "'\n")
@@ -103,17 +104,17 @@ func checkCgroup(pid int) (string, string, string, string, string, error) {
 	containerId := ""
 	containerName := ""
 	if err != nil {
-		log.Println("Cannot read cgroup information for PID:", pid)
-		log.Println("Error:", err)
+		slog.Debug("Cannot read cgroup information for PID:", pid)
+		slog.Debug("Error:", err)
 		return hierarchyId, subsystem, cgroupPath, containerId, containerName, err
 	} else {
 		cgroupPathFields := strings.Split(cgroupPath, "/")
 		processCgroup := cgroupPathFields[1]
 		if processCgroup == "docker" {
-			log.Printf("This process %d is running in a Docker container.\n", pid)
+			slog.Debug(fmt.Sprintf("This process %d is running in a Docker container.\n", pid))
 			containerId = cgroupPathFields[2]
 		} else {
-			log.Printf("This process %d is running in system or user cgroup.\n", pid)
+			slog.Debug(fmt.Sprintf("This process %d is running in system or user cgroup.\n", pid))
 			// check if the process is running in a Docker container
 			// 1. Read the cgroup file of the process
 			// 2. Check if the process is running in a Docker container
@@ -125,7 +126,7 @@ func checkCgroup(pid int) (string, string, string, string, string, error) {
 				processInfo := cgroupPathFields[2]
 				processInfoFields := strings.Split(processInfo, "-")
 				if processInfoFields[0] == "docker" {
-					log.Printf("This process %d is running in a Docker container\n", pid)
+					slog.Debug(fmt.Sprintf("This process %d is running in a Docker container\n", pid))
 					containerId = strings.ReplaceAll(processInfoFields[1], ".scope", "")
 				}
 			}
@@ -168,7 +169,6 @@ func getProcesses() (string, error) {
 	//out, err := exec.Command("/usr/sbin/iotop", "--only -k -b -n 1").Output()
 	out, err := exec.Command("/usr/sbin/iotop", "--processes", "-qqq", "--only", "-k", "-b", "-n", "1").Output()
 	if err != nil {
-		log.Println(err)
 		return "", err
 	}
 
@@ -181,7 +181,6 @@ func getProcesses_with_mem_cpu() (string, error) {
 	//fmt.Println("Getting processes with mem and cpu")
 	out, err := exec.Command("ps", "-eo", "user:30,pid,pcpu,vsz,rss,cmd", "--sort=-rss", "--no-headers").Output()
 	if err != nil {
-		log.Println(err)
 		return "", err
 	}
 	processes := strings.TrimSpace(string(out))
@@ -201,15 +200,15 @@ func metrics_to_influx(input_url string, input_token string, input_org string, i
 	bucket := input_bucket
 	writeAPI := client.WriteAPIBlocking(org, bucket)
 	if err != nil {
-		log.Println("Error fetching logged-in users:", err)
+		slog.Error("Error fetching logged-in users:", err)
 		return
 	}
 	if err_get_process != nil {
-		log.Println("Error fetching process:", err_get_process)
+		slog.Error("Error fetching process:", err_get_process)
 		return
 	}
 	if err_get_process_mem_cpu != nil {
-		log.Println("Error fetching process with mem and cpu:", err_get_process_mem_cpu)
+		slog.Error("Error fetching process with mem and cpu:", err_get_process_mem_cpu)
 		return
 	}
 
@@ -274,9 +273,9 @@ func metrics_to_influx(input_url string, input_token string, input_org string, i
 
 				process_id_str, _ := strconv.Atoi(process_id)
 				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
-					log.Println("Error:", err)
+					slog.Debug("Error:", err)
 				} else {
-					fmt.Printf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
+					slog.Debug("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
 				}
 				if containerId == "" {
 					containerId = "0 N/A"
@@ -337,9 +336,9 @@ func metrics_to_influx(input_url string, input_token string, input_org string, i
 				}
 				process_id_str, _ := strconv.Atoi(process_id)
 				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
-					log.Println("Error:", err)
+					slog.Debug("Error:", err)
 				} else {
-					log.Printf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
+					slog.Debug(fmt.Sprintf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName))
 				}
 				if containerId == "" {
 					containerId = "0 N/A"
@@ -374,17 +373,17 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		http.Error(w, "Error fetching logged-in users", http.StatusInternalServerError)
-		log.Println(err)
+		slog.Error(err.Error())
 		return
 	}
 	if err_get_process != nil {
 		http.Error(w, "Error fetching process", http.StatusInternalServerError)
-		log.Println(err_get_process)
+		slog.Error(err_get_process.Error())
 		return
 	}
 	if err_get_process_mem_cpu != nil {
 		http.Error(w, "Error fetching process with mem and cpu", http.StatusInternalServerError)
-		log.Println(err_get_process_mem_cpu)
+		slog.Error(err_get_process_mem_cpu.Error())
 		return
 	}
 
@@ -439,7 +438,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 				process_id_str, _ := strconv.Atoi(process_id)
 				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
-					log.Println("Error:", err)
+					slog.Debug("Error:", err)
 				} else {
 					fmt.Printf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
 				}
@@ -492,7 +491,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 				process_id_str, _ := strconv.Atoi(process_id)
 				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
-					log.Println("Error:", err)
+					slog.Debug("Error:", err)
 				} else {
 					fmt.Printf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
 				}
@@ -518,10 +517,10 @@ func main() {
 	// Get a user id who call this program
 	uid := os.Getuid()
 	user, _ := user.LookupId(strconv.Itoa(uid))
-	log.Println("User ID:", uid)
-	log.Println("User Name:", user.Username)
+	slog.Debug("User ID:", uid)
+	slog.Debug("User Name:", user.Username)
 	if uid != 0 {
-		log.Println("You must run this program as root")
+		slog.Debug("You must run this program as root")
 		os.Exit(1)
 	}
 
@@ -552,8 +551,8 @@ func main() {
 	}()
 
 	// Start the HTTP server on port $port
-	log.Printf("Starting logged users collector server on : %d ...\n", port)
+	slog.Info("Starting logged users collector server on :", port)
 	if err := http.ListenAndServe(":"+strconv.Itoa(port), nil); err != nil {
-		log.Println("Error starting server:", err)
+		slog.Error("Error starting server:", err)
 	}
 }
