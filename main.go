@@ -17,9 +17,39 @@ import (
 	"github.com/akamensky/argparse"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
+	"golang.org/x/sys/unix"
+	"runtime"
 )
 
 var port int
+
+func getOSInfo() (string, string, error) {
+	var distro, version string
+
+	switch runtime.GOOS {
+	case "linux":
+		utsname := &unix.Utsname{}
+		if err := unix.Uname(utsname); err != nil {
+			return "", "", err
+		}
+		distro = string(utsname.Sysname[:])
+		version = string(utsname.Release[:])
+	case "darwin":
+		utsname := &unix.Utsname{}
+		if err := unix.Uname(utsname); err != nil {
+			return "", "", err
+		}
+		distro = "macOS"
+		version = string(utsname.Release[:])
+	case "windows":
+		distro = "Windows"
+		version = "N/A"
+	default:
+		return "", "", fmt.Errorf("Unsupported OS")
+	}
+
+	return distro, version, nil
+}
 
 func readCgroupInfo(pid int) (string, string, string, error) {
 	cgroupFile := filepath.Join("/proc", fmt.Sprint(pid), "cgroup")
@@ -161,6 +191,7 @@ func metricsHandler_push() {
 	users, err := getLoggedInUsers()
 	host_name, err := getHostname()
 	my_processes, err_get_process := getProcesses()
+	os_dist, os_version, err := getOSInfo()
 	process_with_mem_cpu, err_get_process_mem_cpu := getProcesses_with_mem_cpu()
 	token := "h+TMf2idXNg="
 	url := "http://keti-dashboard.sunjoo.org:8086"
@@ -192,7 +223,7 @@ func metricsHandler_push() {
 	}
 
 	// Prometheus gauge metric format
-	tags := map[string]string{"hostname": host_name}
+	tags := map[string]string{"hostname": host_name, "os": os_dist, "os_version": os_version}
 	fields := map[string]interface{}{"number_of_users": userCount}
 	point := write.NewPoint("logged_in_users", tags, fields, time.Now())
 	if err := writeAPI.WritePoint(context.Background(), point); err != nil {
@@ -214,7 +245,8 @@ func metricsHandler_push() {
 			what_command_str := strings.Join(what_command, " ")
 			metrics += fmt.Sprintf("logged_in_user{hostname=\"%s\", user=\"%s\", tty=\"%s\", from=\"%s\", when=\"%s\", idle=\"%s\", jcpu=\"%s\", pcpu=\"%s\", what=\"%s\"} 1\n",
 				host_name, user_name, tty, from_location, when, idle_time, jcpu_time, pcpu_time, what_command_str)
-			tags := map[string]string{"hostname": host_name, "user": user_name, "tty": tty, "from": from_location, "when": when, "idle": idle_time, "jcpu": jcpu_time, "pcpu": pcpu_time, "what": what_command_str}
+			tags := map[string]string{"hostname": host_name, "os": os_dist, "os_version": os_version,
+				"user": user_name, "tty": tty, "from": from_location, "when": when, "idle": idle_time, "jcpu": jcpu_time, "pcpu": pcpu_time, "what": what_command_str}
 			fields := map[string]interface{}{"logged_in": 1}
 			point := write.NewPoint("logged_in_user", tags, fields, time.Now())
 			if err := writeAPI.WritePoint(context.Background(), point); err != nil {
@@ -257,7 +289,8 @@ func metricsHandler_push() {
 				if process_info[7] == "?unavailable?" {
 					process_command := process_info[8:]
 					process_command_str := strings.Join(process_command, " ")
-					tags = map[string]string{"hostname": host_name, "process_id": process_id, "username": user_name, "command": process_command_str, "container_name": containerName, "container_id": containerId}
+					tags = map[string]string{"hostname": host_name, "os": os_dist, "os_version": os_version,
+						"process_id": process_id, "username": user_name, "command": process_command_str, "container_name": containerName, "container_id": containerId}
 					read_Ks_float, _ := strconv.ParseFloat(read_Ks, 64)
 					write_Ks_float, _ := strconv.ParseFloat(write_Ks, 64)
 					fields = map[string]interface{}{"read": read_Ks_float, "write": write_Ks_float}
@@ -270,7 +303,8 @@ func metricsHandler_push() {
 					write_Ks_float, _ := strconv.ParseFloat(write_Ks, 64)
 					swapin_percent_float, _ := strconv.ParseFloat(swapin_percent, 64)
 					io_percent_float, _ := strconv.ParseFloat(io_percent, 64)
-					tags = map[string]string{"hostname": host_name, "process_id": process_id, "username": user_name, "command": process_command_str}
+					tags = map[string]string{"hostname": host_name, "os": os_dist, "os_version": os_version,
+						"process_id": process_id, "username": user_name, "command": process_command_str}
 					fields = map[string]interface{}{"read": read_Ks_float, "write": write_Ks_float, "swapin": swapin_percent_float, "io": io_percent_float}
 				}
 				fmt.Println(tags)
@@ -317,7 +351,8 @@ func metricsHandler_push() {
 				cpu_percent_float, _ := strconv.ParseFloat(cpu_percent, 64)
 				vsz_float, _ := strconv.ParseFloat(vsz, 64)
 				rss_float, _ := strconv.ParseFloat(rss, 64)
-				tags := map[string]string{"hostname": host_name, "username": username, "process_id": process_id, "command": process_command_str, "container_name": containerName, "container_id": containerId}
+				tags := map[string]string{"hostname": host_name, "os": os_dist, "os_version": os_version,
+					"username": username, "process_id": process_id, "command": process_command_str, "container_name": containerName, "container_id": containerId}
 				fields := map[string]interface{}{"cpu_percent": cpu_percent_float, "vsz": vsz_float, "rss": rss_float}
 				point := write.NewPoint("process_mem_cpu", tags, fields, time.Now())
 				if err := writeAPI.WritePoint(context.Background(), point); err != nil {
