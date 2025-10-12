@@ -61,7 +61,7 @@ func readCgroupInfo(pid int) (string, string, string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	slog.Debug("Read Cgroup information for PID %d:\n", pid)
+	slog.Debug("Read Cgroup information", "PID", pid)
 	for scanner.Scan() {
 		line := scanner.Text()
 		fields := strings.Split(line, ":")
@@ -88,8 +88,8 @@ func getContainerName(containerId string) (string, error) {
 	//  docker inspect -f '{{.Name}}' <containerId>>?
 	out, err := exec.Command("docker", "inspect", "-f", "'{{.Name}}'", containerId).Output()
 	if err != nil {
-		slog.Debug("Cannot get container name for container ID:", containerId)
-		slog.Debug("Error:", err)
+		slog.Debug("Cannot get container name for container ID", "containerId", containerId)
+		slog.Debug("Error", "err", err)
 		return containerName, err
 	}
 	containerName = strings.Trim(string(out), "'\n")
@@ -101,8 +101,8 @@ func checkCgroup(pid int) (string, string, string, string, string, error) {
 	containerId := ""
 	containerName := ""
 	if err != nil {
-		slog.Debug("Cannot read cgroup information for PID:", pid)
-		slog.Debug("Error:", err)
+		slog.Debug("Cannot read cgroup information for PID", "pid", pid)
+		slog.Debug("Error", "err", err)
 		return hierarchyId, subsystem, cgroupPath, containerId, containerName, err
 	} else {
 		cgroupPathFields := strings.Split(cgroupPath, "/")
@@ -197,15 +197,15 @@ func metrics_to_influx(input_url string, input_token string, input_org string, i
 	bucket := input_bucket
 	writeAPI := client.WriteAPIBlocking(org, bucket)
 	if err != nil {
-		slog.Error("Error fetching logged-in users:", err)
+		slog.Error("Error fetching logged-in users", "err", err)
 		return
 	}
 	if err_get_process != nil {
-		slog.Error("Error fetching process:", err_get_process)
+		slog.Error("Error fetching process", "err", err_get_process)
 		return
 	}
 	if err_get_process_mem_cpu != nil {
-		slog.Error("Error fetching process with mem and cpu:", err_get_process_mem_cpu)
+		slog.Error("Error fetching process with mem and cpu", "err", err_get_process_mem_cpu)
 		return
 	}
 
@@ -270,9 +270,9 @@ func metrics_to_influx(input_url string, input_token string, input_org string, i
 
 				process_id_str, _ := strconv.Atoi(process_id)
 				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
-					slog.Debug("Error:", err)
+					slog.Debug("Error", "err", err)
 				} else {
-					slog.Debug("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
+					slog.Debug("Hierarchy ID", "hierarchyId", hierarchyId, "Subsystem", subsystem, "Cgroup Path", cgroupPath, "Container ID", containerId, "Container Name", containerName)
 				}
 				if containerId == "" {
 					containerId = "0 N/A"
@@ -333,9 +333,9 @@ func metrics_to_influx(input_url string, input_token string, input_org string, i
 				}
 				process_id_str, _ := strconv.Atoi(process_id)
 				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
-					slog.Debug("Error:", err)
+					slog.Debug("Error", "err", err)
 				} else {
-					slog.Debug(fmt.Sprintf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName))
+					slog.Debug("Hierarchy ID", "hierarchyId", hierarchyId, "Subsystem", subsystem, "Cgroup Path", cgroupPath, "Container ID", containerId, "Container Name", containerName)
 				}
 				if containerId == "" {
 					containerId = "0 N/A"
@@ -370,17 +370,17 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		http.Error(w, "Error fetching logged-in users", http.StatusInternalServerError)
-		slog.Error(err.Error())
+		slog.Error("Error fetching logged-in users", "err", err)
 		return
 	}
 	if err_get_process != nil {
 		http.Error(w, "Error fetching process", http.StatusInternalServerError)
-		slog.Error(err_get_process.Error())
+		slog.Error("Error fetching process", "err", err_get_process)
 		return
 	}
 	if err_get_process_mem_cpu != nil {
 		http.Error(w, "Error fetching process with mem and cpu", http.StatusInternalServerError)
-		slog.Error(err_get_process_mem_cpu.Error())
+		slog.Error("Error fetching process with mem and cpu", "err", err_get_process_mem_cpu)
 		return
 	}
 
@@ -435,7 +435,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 				process_id_str, _ := strconv.Atoi(process_id)
 				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
-					slog.Debug("Error:", err)
+					slog.Debug("Error", "err", err)
 				} else {
 					fmt.Printf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
 				}
@@ -488,7 +488,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 				process_id_str, _ := strconv.Atoi(process_id)
 				if hierarchyId, subsystem, cgroupPath, containerId, containerName, err = checkCgroup(process_id_str); err != nil {
-					slog.Debug("Error:", err)
+					slog.Debug("Error", "err", err)
 				} else {
 					fmt.Printf("Hierarchy ID: %s, Subsystem: %s, Cgroup Path: %s, Container ID: %s, Container Name: %s\n", hierarchyId, subsystem, cgroupPath, containerId, containerName)
 				}
@@ -514,8 +514,8 @@ func main() {
 	// Get a user id who call this program
 	uid := os.Getuid()
 	user, _ := user.LookupId(strconv.Itoa(uid))
-	slog.Debug("User ID:", uid)
-	slog.Debug("User Name:", user.Username)
+	slog.Debug("User ID", "uid", uid)
+	slog.Debug("User Name", "user", user.Username)
 	if uid != 0 {
 		slog.Debug("You must run this program as root")
 		os.Exit(1)
@@ -548,8 +548,8 @@ func main() {
 	}()
 
 	// Start the HTTP server on port $port
-	slog.Info("Starting logged users collector server on :", port)
+	slog.Info("Starting logged users collector server", "port", port)
 	if err := http.ListenAndServe(":"+strconv.Itoa(port), nil); err != nil {
-		slog.Error("Error starting server:", err)
+		slog.Error("Error starting server", "err", err)
 	}
 }
